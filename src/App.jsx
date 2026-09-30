@@ -12,324 +12,266 @@ function App() {
   const [locationName, setLocationName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-const popularCities = [
-  'Hyderabad',
-  'Mumbai',
-  'Delhi',
-  'Bengaluru',
-  'Chennai',
-  'Kolkata',
-  'Pune',
-  'Ahmedabad',
-  'Jaipur',
-  'Surat',
-  'Visakhapatnam',
-  'Vijayawada',
-  'Warangal',
-  'Nagpur',
-  'Lucknow',
-  'Bhopal',
-  'Indore',
-  'Patna',
-  'Bhubaneswar',
-  'Chandigarh',
-  'London',
-  'New York',
-  'Paris',
-  'Tokyo',
-  'Dubai',
-  'Singapore'
-]
 
-  const searchWeather = async () => {
-    if (!city.trim()) {
-      setError('Please enter a city name')
+  const popularCities = [
+    'Hyderabad',
+    'Mumbai',
+    'Delhi',
+    'Bengaluru',
+    'Chennai',
+    'Kolkata',
+    'Pune',
+    'Ahmedabad',
+    'Jaipur',
+    'Surat',
+    'Visakhapatnam',
+    'Vijayawada',
+    'Warangal',
+    'Nagpur',
+    'Lucknow',
+    'Bhopal',
+    'Indore',
+    'Patna',
+    'Bhubaneswar',
+    'Chandigarh',
+    'London',
+    'New York',
+    'Paris',
+    'Tokyo',
+    'Dubai',
+    'Singapore',
+  ]
+
+  const getWeather = async (searchCity = city) => {
+    if (!searchCity.trim()) {
+      setError('Please enter a city name.')
       return
     }
-    function App() {
-
-  const sunrise = "06:02";
-  const sunset = "18:15";
-
-  const getSunProgress = () => {
-    const now = new Date();
-
-    const [sunriseHour, sunriseMinute] = sunrise.split(":").map(Number);
-    const [sunsetHour, sunsetMinute] = sunset.split(":").map(Number);
-
-    const sunriseTime = new Date();
-    sunriseTime.setHours(sunriseHour, sunriseMinute, 0, 0);
-
-    const sunsetTime = new Date();
-    sunsetTime.setHours(sunsetHour, sunsetMinute, 0, 0);
-
-    let progress =
-      ((now - sunriseTime) / (sunsetTime - sunriseTime)) * 100;
-
-    if (progress < 0) progress = 0;
-    if (progress > 100) progress = 100;
-
-    return progress;
-  };
-
-  const sunProgress = getSunProgress();
-
-  return (
-    <div className="sun-card">
-
-  <h2>☀️ Sun Progress</h2>
-
-  <div className="sun-times">
-
-    <div>
-      <span className="sun-symbol">🌅</span>
-      <p>Sunrise</p>
-      <strong>6:02 AM</strong>
-    </div>
-
-    <div className="current-time">
-      <p>Day Progress</p>
-      <strong>{Math.round(sunProgress)}%</strong>
-    </div>
-
-    <div>
-      <span className="sun-symbol">🌇</span>
-      <p>Sunset</p>
-      <strong>6:15 PM</strong>
-    </div>
-
-  </div>
-
-  <div className="sun-slider">
-
-    <div
-      className="sun-progress"
-      style={{ width: `${sunProgress}%` }}
-    ></div>
-
-    <div
-      className="sun-dot"
-      style={{ left: `${sunProgress}%` }}
-    >
-      ☀️
-    </div>
-
-  </div>
-
-</div>
-  )
 
     setLoading(true)
     setError('')
+    setWeather(null)
 
     try {
-      // Step 1: Find city coordinates
-      const locationResponse = await fetch(
+      // STEP 1: Find city coordinates
+      const geoResponse = await fetch(
         `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
-          city
+          searchCity
         )}&count=1&language=en&format=json`
       )
 
-      const locationData = await locationResponse.json()
-
-      if (!locationData.results || locationData.results.length === 0) {
-        throw new Error('City not found')
+      if (!geoResponse.ok) {
+        throw new Error('Unable to find the city.')
       }
 
-      const location = locationData.results[0]
+      const geoData = await geoResponse.json()
 
-      // Step 2: Get weather information
-      const weatherResponse = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,precipitation_sum,wind_speed_10m_max&timezone=auto`
+      if (!geoData.results || geoData.results.length === 0) {
+        throw new Error('City not found. Please enter a valid city.')
+      }
+
+      const place = geoData.results[0]
+
+      const latitude = place.latitude
+      const longitude = place.longitude
+
+      setLocationName(
+        `${place.name}${place.country ? `, ${place.country}` : ''}`
       )
+
+      // STEP 2: Get weather
+      const weatherResponse = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,precipitation_sum,wind_speed_10m_max&timezone=auto&forecast_days=7`
+      )
+
+      if (!weatherResponse.ok) {
+        throw new Error('Unable to get weather information.')
+      }
 
       const weatherData = await weatherResponse.json()
 
-      setLocationName(
-        `${location.name}, ${location.country || ''}`
-      )
-
       setWeather(weatherData)
+      setCity(place.name)
     } catch (err) {
-      setError('Unable to get weather. Please check the city name.')
-      setWeather(null)
+      setError(err.message || 'Something went wrong.')
     } finally {
       setLoading(false)
     }
   }
 
+  const handleSubmit = (event) => {
+    event.preventDefault()
+    getWeather()
+  }
+
   const getWeatherDescription = (code) => {
-    if (code === 0) return 'Clear Sky'
-    if ([1, 2, 3].includes(code)) return 'Partly Cloudy'
+    if (code === 0) return 'Clear sky'
+    if (code === 1) return 'Mainly clear'
+    if (code === 2) return 'Partly cloudy'
+    if (code === 3) return 'Overcast'
     if ([45, 48].includes(code)) return 'Foggy'
     if ([51, 53, 55].includes(code)) return 'Drizzle'
+    if ([56, 57].includes(code)) return 'Freezing drizzle'
     if ([61, 63, 65].includes(code)) return 'Rain'
+    if ([66, 67].includes(code)) return 'Freezing rain'
     if ([71, 73, 75].includes(code)) return 'Snow'
-    if ([80, 81, 82].includes(code)) return 'Rain Showers'
+    if (code === 77) return 'Snow grains'
+    if ([80, 81, 82].includes(code)) return 'Rain showers'
+    if ([85, 86].includes(code)) return 'Snow showers'
     if ([95, 96, 99].includes(code)) return 'Thunderstorm'
 
-    return 'Unknown'
+    return 'Unknown weather'
   }
 
   const getWeatherIcon = (code, isDay = 1) => {
-    if (code === 0) return isDay ? '☀️' : '🌙'
-    if ([1, 2, 3].includes(code)) return '🌤️'
+    if (!isDay) return '🌙'
+
+    if (code === 0) return '☀️'
+    if ([1, 2].includes(code)) return '🌤️'
+    if (code === 3) return '☁️'
     if ([45, 48].includes(code)) return '🌫️'
-    if ([51, 53, 55].includes(code)) return '🌦️'
-    if ([61, 63, 65].includes(code)) return '🌧️'
-    if ([71, 73, 75].includes(code)) return '❄️'
-    if ([80, 81, 82].includes(code)) return '🌦️'
+    if ([51, 53, 55, 56, 57].includes(code)) return '🌦️'
+    if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return '🌧️'
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return '❄️'
     if ([95, 96, 99].includes(code)) return '⛈️'
 
     return '🌤️'
   }
 
-  const formatDay = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      weekday: 'short'
-    })
-  }
-
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    })
-  }
-
-  const formatTime = (date) => {
-    return new Date(date).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
-
-  const getBannerClass = () => {
-    if (!weather) return ''
+  const getBackgroundImage = () => {
+    if (!weather) return sunnyImg
 
     const code = weather.current.weather_code
+    const isDay = weather.current.is_day
 
-    if (weather.current.is_day === 0) {
-      return 'night-banner'
-    }
+    if (!isDay) return nightImg
 
     if ([61, 63, 65, 80, 81, 82, 95, 96, 99].includes(code)) {
-      return 'rain-banner'
+      return rainyImg
     }
 
-    if ([45, 48].includes(code)) {
-      return 'fog-banner'
+    if ([2, 3, 45, 48].includes(code)) {
+      return cloudyImg
     }
 
-    if ([1, 2, 3].includes(code)) {
-      return 'cloud-banner'
-    }
+    return sunnyImg
+  }
 
-    return 'sunny-banner'
+  const formatTime = (dateTime) => {
+    if (!dateTime) return '--'
+
+    const timePart = dateTime.split('T')[1]
+
+    if (!timePart) return dateTime
+
+    return timePart.substring(0, 5)
+  }
+
+  const getDayName = (dateString, index) => {
+    if (index === 0) return 'Today'
+
+    const date = new Date(`${dateString}T12:00:00`)
+
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+    })
+  }
+
+  const getSunProgress = () => {
+    if (!weather) return 50
+
+    const sunrise = new Date(weather.daily.sunrise[0])
+    const sunset = new Date(weather.daily.sunset[0])
+    const now = new Date()
+
+    const total = sunset.getTime() - sunrise.getTime()
+    const current = now.getTime() - sunrise.getTime()
+
+    if (current <= 0) return 0
+    if (current >= total) return 100
+
+    return (current / total) * 100
   }
 
   return (
-    <div className="app">
+    <div
+      className="app"
+      style={{
+        backgroundImage: `linear-gradient(
+          rgba(0, 0, 0, 0.35),
+          rgba(0, 0, 0, 0.45)
+        ), url(${getBackgroundImage()})`,
+      }}
+    >
+      <header className="header">
+        <h1>🌦️ Weather Now</h1>
+        <p>Real-time weather information for any city</p>
+      </header>
 
-      <div className="weather-container">
-
-        {/* Header */}
-        <header>
-          <h1>🌦️ Weather Now</h1>
-
-          <p className="subtitle">
-            Real-time weather information for any city
-          </p>
-        </header>
-
-        {/* Search */}
-        <div className="search-box">
-
+      <main className="container">
+        <form className="search-box" onSubmit={handleSubmit}>
           <input
             type="text"
             placeholder="Enter city name..."
             value={city}
-            onChange={(e) => setCity(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                searchWeather()
-              }
-            }}
+            onChange={(event) => setCity(event.target.value)}
           />
 
-          <button onClick={searchWeather}>
+          <button type="submit">
             🔍 Search
           </button>
+        </form>
 
-        </div>
-<div className="popular-cities">
+        <section className="popular-section">
+          <h3>Popular Cities</h3>
 
-  <h3>🌍 Popular Cities</h3>
+          <div className="city-buttons">
+            {popularCities.map((popularCity) => (
+              <button
+                key={popularCity}
+                type="button"
+                onClick={() => getWeather(popularCity)}
+              >
+                {popularCity}
+              </button>
+            ))}
+          </div>
+        </section>
 
-  <div className="city-buttons">
-
-    {popularCities.map((popularCity) => (
-      <button
-        key={popularCity}
-        onClick={() => {
-          setCity(popularCity)
-
-          setTimeout(() => {
-            searchWeather()
-          }, 0)
-        }}
-      >
-        {popularCity}
-      </button>
-    ))}
-
-  </div>
-
-</div>
-        {/* Loading */}
         {loading && (
           <div className="message">
-            <div className="loader"></div>
-            <p>Getting latest weather...</p>
+            <h2>🌍 Loading weather...</h2>
+            <p>Please wait a moment.</p>
           </div>
         )}
 
-        {/* Error */}
-        {error && (
-          <div className="error">
-            ❌ {error}
+        {error && !loading && (
+          <div className="message error">
+            <h2>⚠️ {error}</h2>
           </div>
         )}
 
-        {/* Weather Information */}
+        {!weather && !loading && !error && (
+          <div className="welcome">
+            <h2>Welcome to Weather Now 🌤️</h2>
+            <p>
+              Search for any city to see current weather, sunrise,
+              sunset and a 7-day forecast.
+            </p>
+          </div>
+        )}
+
         {weather && !loading && (
-
-          <div>
-
-            {/* Main Weather Banner */}
-            <div className={`weather-banner ${getBannerClass()}`}>
-
-              <div className="banner-left">
-
-                <p className="location">
-                  📍 {locationName}
+          <>
+            <section className="weather-card">
+              <div className="location">
+                <h2>📍 {locationName}</h2>
+                <p>
+                  {getWeatherDescription(weather.current.weather_code)}
                 </p>
-
-                <h2>
-                  {weather.current.is_day === 1
-                    ? 'Good Day!'
-                    : 'Good Evening!'}
-                </h2>
-
-                <p className="date">
-                  {formatDate(weather.current.time)}
-                </p>
-
               </div>
 
-              <div className="banner-right">
-
+              <div className="current-weather">
                 <div className="weather-icon">
                   {getWeatherIcon(
                     weather.current.weather_code,
@@ -337,40 +279,22 @@ const popularCities = [
                   )}
                 </div>
 
-                <div className="main-temperature">
-                  {Math.round(weather.current.temperature_2m)}°C
+                <div>
+                  <div className="temperature">
+                    {Math.round(weather.current.temperature_2m)}°C
+                  </div>
+
+                  <p>
+                    Feels like{' '}
+                    {Math.round(weather.current.apparent_temperature)}°C
+                  </p>
                 </div>
-
-                <p>
-                  {getWeatherDescription(
-                    weather.current.weather_code
-                  )}
-                </p>
-
               </div>
 
-            </div>
-
-            {/* Current Weather */}
-            <section className="section">
-
-              <h2>Current Weather</h2>
-
-              <div className="details-grid">
-
-                <div className="detail-card">
-                  <span>🌡️</span>
-                  <p>Feels Like</p>
-                  <strong>
-                    {Math.round(
-                      weather.current.apparent_temperature
-                    )}°C
-                  </strong>
-                </div>
-
+              <div className="weather-details">
                 <div className="detail-card">
                   <span>💧</span>
-                  <p>Humidity</p>
+                  <h3>Humidity</h3>
                   <strong>
                     {weather.current.relative_humidity_2m}%
                   </strong>
@@ -378,84 +302,109 @@ const popularCities = [
 
                 <div className="detail-card">
                   <span>💨</span>
-                  <p>Wind Speed</p>
+                  <h3>Wind</h3>
                   <strong>
-                    {weather.current.wind_speed_10m} km/h
+                    {Math.round(weather.current.wind_speed_10m)} km/h
                   </strong>
                 </div>
 
                 <div className="detail-card">
                   <span>🌧️</span>
-                  <p>Precipitation</p>
+                  <h3>Precipitation</h3>
                   <strong>
                     {weather.current.precipitation} mm
                   </strong>
                 </div>
-
               </div>
-
             </section>
 
-            {/* Sunrise Sunset */}
-            <section className="section">
+            <section className="sun-card">
+              <h2>🌅 Sunrise & Sunset</h2>
 
-              <h2>☀️ Sun Information</h2>
-
-              <div className="sun-grid">
-
-                <div className="sun-card">
-                  <span>🌅</span>
-                  <div>
-                    <p>Sunrise</p>
-                    <strong>
-                      {formatTime(weather.daily.sunrise[0])}
-                    </strong>
-                  </div>
+              <div className="sun-times">
+                <div>
+                  <span>🌅 Sunrise</span>
+                  <strong>
+                    {formatTime(weather.daily.sunrise[0])}
+                  </strong>
                 </div>
 
-                <div className="sun-card">
-                  <span>🌇</span>
-                  <div>
-                    <p>Sunset</p>
-                    <strong>
-                      {formatTime(weather.daily.sunset[0])}
-                    </strong>
-                  </div>
+                <div>
+                  <span>🌇 Sunset</span>
+                  <strong>
+                    {formatTime(weather.daily.sunset[0])}
+                  </strong>
                 </div>
-
               </div>
 
+              <div className="sun-slider">
+                <div className="sun-line">
+                  <div
+                    className="sun-progress"
+                    style={{
+                      width: `${getSunProgress()}%`,
+                    }}
+                  ></div>
+
+                  <div
+                    className="sun-dot"
+                    style={{
+                      left: `${getSunProgress()}%`,
+                    }}
+                  >
+                    ☀️
+                  </div>
+                </div>
+              </div>
+
+              <div className="sun-labels">
+                <span>🌅 Sunrise</span>
+                <span>🌇 Sunset</span>
+              </div>
             </section>
 
-            {/* 7 Day Forecast */}
-            <section className="section">
+            <section className="moon-card">
+              <h2>🌙 Moon Information</h2>
 
+              <div className="moon-content">
+                <div className="moon-icon">🌙</div>
+
+                <div>
+                  <h3>Night Time</h3>
+                  <p>
+                    Sunset: {formatTime(weather.daily.sunset[0])}
+                  </p>
+                  <p>
+                    Sunrise: {formatTime(weather.daily.sunrise[0])}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="forecast-section">
               <h2>📅 7-Day Forecast</h2>
 
               <div className="forecast-grid">
-
-                {weather.daily.time.map((day, index) => (
-
-                  <div className="forecast-card" key={day}>
-
+                {weather.daily.time.map((date, index) => (
+                  <div className="forecast-card" key={date}>
                     <h3>
-                      {index === 0 ? 'Today' : formatDay(day)}
+                      {getDayName(date, index)}
                     </h3>
 
                     <div className="forecast-icon">
                       {getWeatherIcon(
-                        weather.daily.weather_code[index]
+                        weather.daily.weather_code[index],
+                        1
                       )}
                     </div>
 
-                    <p className="forecast-condition">
+                    <p>
                       {getWeatherDescription(
                         weather.daily.weather_code[index]
                       )}
                     </p>
 
                     <div className="forecast-temperature">
-
                       <strong>
                         {Math.round(
                           weather.daily.temperature_2m_max[index]
@@ -467,65 +416,31 @@ const popularCities = [
                           weather.daily.temperature_2m_min[index]
                         )}°
                       </span>
-
                     </div>
 
-                    <p className="rain-chance">
-                      💧 {weather.daily.precipitation_sum[index]} mm
+                    <p>
+                      💨{' '}
+                      {Math.round(
+                        weather.daily.wind_speed_10m_max[index]
+                      )}{' '}
+                      km/h
                     </p>
 
+                    <p>
+                      🌧️{' '}
+                      {weather.daily.precipitation_sum[index]} mm
+                    </p>
                   </div>
-
                 ))}
-
               </div>
-
             </section>
-
-          </div>
-
+          </>
         )}
+      </main>
 
-        {/* Welcome Screen */}
-        {!weather && !loading && !error && (
-
-          <div className="welcome">
-
-            <div className="welcome-icon">
-              🌍
-            </div>
-
-            <h2>Check Weather Anywhere</h2>
-
-            <p>
-              Enter a city name to see current weather,
-              weather details and a 7-day forecast.
-            </p>
-
-            <div className="features">
-
-              <span>🌡️ Temperature</span>
-              <span>💧 Humidity</span>
-              <span>💨 Wind</span>
-              <span>🌧️ Rain</span>
-              <span>🌅 Sunrise</span>
-              <span>📅 Forecast</span>
-
-            </div>
-
-          </div>
-
-        )}
-
-        {/* Footer */}
-        <footer>
-          <p>
-            Weather data powered by Open-Meteo
-          </p>
-        </footer>
-
-      </div>
-
+      <footer>
+        <p>Weather data powered by Open-Meteo 🌍</p>
+      </footer>
     </div>
   )
 }
