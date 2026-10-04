@@ -53,12 +53,16 @@ function App() {
     setError('')
 
     try {
-      // Step 1: Find city coordinates
+      // Find city coordinates
       const locationResponse = await fetch(
         `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
           cityName
         )}&count=1&language=en&format=json`
       )
+
+      if (!locationResponse.ok) {
+        throw new Error('Location request failed')
+      }
 
       const locationData = await locationResponse.json()
 
@@ -68,10 +72,14 @@ function App() {
 
       const location = locationData.results[0]
 
-      // Step 2: Get weather information
+      // Get weather information
       const weatherResponse = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,precipitation_sum,wind_speed_10m_max&timezone=auto`
+        `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&hourly=temperature_2m,weather_code,precipitation_probability,relative_humidity_2m,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,precipitation_sum,wind_speed_10m_max&timezone=auto&forecast_days=7`
       )
+
+      if (!weatherResponse.ok) {
+        throw new Error('Weather request failed')
+      }
 
       const weatherData = await weatherResponse.json()
 
@@ -81,6 +89,7 @@ function App() {
 
       setWeather(weatherData)
     } catch (err) {
+      console.error(err)
       setError('Unable to get weather. Please check the city name.')
       setWeather(null)
     } finally {
@@ -116,6 +125,33 @@ function App() {
     return '🌤️'
   }
 
+  // Get weather background image
+  const getWeatherBackground = () => {
+    if (!weather) return sunnyImg
+
+    const code = weather.current.weather_code
+
+    if (weather.current.is_day === 0) {
+      return nightImg
+    }
+
+    if (
+      [61, 63, 65, 80, 81, 82, 95, 96, 99].includes(code)
+    ) {
+      return rainyImg
+    }
+
+    if ([45, 48].includes(code)) {
+      return cloudyImg
+    }
+
+    if ([1, 2, 3].includes(code)) {
+      return cloudyImg
+    }
+
+    return sunnyImg
+  }
+
   // Format day
   const formatDay = (date) => {
     return new Date(date).toLocaleDateString('en-US', {
@@ -140,48 +176,16 @@ function App() {
     })
   }
 
-  // Weather banner class
-  const getBannerClass = () => {
-    if (!weather) return ''
-
-    const code = weather.current.weather_code
-
-    if (weather.current.is_day === 0) {
-      return 'night-banner'
-    }
-
-    if (
-      [61, 63, 65, 80, 81, 82, 95, 96, 99].includes(code)
-    ) {
-      return 'rain-banner'
-    }
-
-    if ([45, 48].includes(code)) {
-      return 'fog-banner'
-    }
-
-    if ([1, 2, 3].includes(code)) {
-      return 'cloud-banner'
-    }
-
-    return 'sunny-banner'
-  }
-
   // Sun progress
   const getSunProgress = () => {
     if (!weather) return 0
 
-    const sunrise = weather.daily.sunrise[0]
-    const sunset = weather.daily.sunset[0]
-
-    const sunriseTime = new Date(sunrise)
-    const sunsetTime = new Date(sunset)
+    const sunrise = new Date(weather.daily.sunrise[0])
+    const sunset = new Date(weather.daily.sunset[0])
     const now = new Date()
 
     let progress =
-      ((now - sunriseTime) /
-        (sunsetTime - sunriseTime)) *
-      100
+      ((now - sunrise) / (sunset - sunrise)) * 100
 
     if (progress < 0) progress = 0
     if (progress > 100) progress = 100
@@ -189,7 +193,41 @@ function App() {
     return progress
   }
 
+  // Get next 24 hours
+  const getNext24Hours = () => {
+    if (!weather || !weather.hourly) return []
+
+    const currentTime = weather.current.time
+
+    let startIndex = weather.hourly.time.findIndex(
+      (time) => time >= currentTime
+    )
+
+    if (startIndex < 0) {
+      startIndex = 0
+    }
+
+    return weather.hourly.time
+      .slice(startIndex, startIndex + 24)
+      .map((time, index) => {
+        const realIndex = startIndex + index
+
+        return {
+          time,
+          temperature: weather.hourly.temperature_2m[realIndex],
+          weatherCode: weather.hourly.weather_code[realIndex],
+          rain:
+            weather.hourly.precipitation_probability?.[realIndex] ?? 0,
+          humidity:
+            weather.hourly.relative_humidity_2m?.[realIndex] ?? 0,
+          wind:
+            weather.hourly.wind_speed_10m?.[realIndex] ?? 0
+        }
+      })
+  }
+
   const sunProgress = getSunProgress()
+  const next24Hours = getNext24Hours()
 
   return (
     <div className="app">
@@ -276,7 +314,13 @@ function App() {
 
             {/* Main Weather Banner */}
             <div
-              className={`weather-banner ${getBannerClass()}`}
+              className="weather-banner"
+              style={{
+                backgroundImage: `linear-gradient(
+                  rgba(255,255,255,0.22),
+                  rgba(255,255,255,0.22)
+                ), url(${getWeatherBackground()})`
+              }}
             >
 
               <div className="banner-left">
@@ -299,7 +343,7 @@ function App() {
 
               <div className="banner-right">
 
-                <div className="weather-icon">
+                <div className="weather-icon animated-weather-icon">
                   {getWeatherIcon(
                     weather.current.weather_code,
                     weather.current.is_day
@@ -325,65 +369,91 @@ function App() {
             {/* Current Weather */}
             <section className="section">
 
-              <h2>Current Weather</h2>
+              <h2>🌡️ Current Weather</h2>
 
               <div className="details-grid">
 
                 <div className="detail-card">
-
                   <span>🌡️</span>
-
                   <p>Feels Like</p>
-
                   <strong>
                     {Math.round(
                       weather.current.apparent_temperature
                     )}°C
                   </strong>
-
                 </div>
 
                 <div className="detail-card">
-
                   <span>💧</span>
-
                   <p>Humidity</p>
-
                   <strong>
                     {weather.current.relative_humidity_2m}%
                   </strong>
-
                 </div>
 
                 <div className="detail-card">
-
                   <span>💨</span>
-
                   <p>Wind Speed</p>
-
                   <strong>
                     {weather.current.wind_speed_10m} km/h
                   </strong>
-
                 </div>
 
                 <div className="detail-card">
-
                   <span>🌧️</span>
-
                   <p>Precipitation</p>
-
                   <strong>
                     {weather.current.precipitation} mm
                   </strong>
-
                 </div>
 
               </div>
 
             </section>
 
-            {/* Sunrise Sunset */}
+            {/* 24 Hour Forecast */}
+            <section className="section">
+
+              <h2>🕐 24-Hour Forecast</h2>
+
+              <div className="hourly-scroll">
+
+                {next24Hours.map((hour) => (
+
+                  <div
+                    className="hour-card"
+                    key={hour.time}
+                  >
+
+                    <p className="hour-time">
+                      {formatTime(hour.time)}
+                    </p>
+
+                    <div className="hour-icon">
+                      {getWeatherIcon(hour.weatherCode)}
+                    </div>
+
+                    <strong className="hour-temperature">
+                      {Math.round(hour.temperature)}°
+                    </strong>
+
+                    <p>
+                      💧 {hour.rain}%
+                    </p>
+
+                    <p>
+                      💨 {Math.round(hour.wind)} km/h
+                    </p>
+
+                  </div>
+
+                ))}
+
+              </div>
+
+            </section>
+
+            {/* Sun Information */}
             <section className="section">
 
               <h2>☀️ Sun Information</h2>
@@ -456,6 +526,7 @@ function App() {
                   </div>
 
                   <div>
+
                     <span className="sun-symbol">
                       🌇
                     </span>
@@ -518,21 +589,15 @@ function App() {
                       </h3>
 
                       <div className="forecast-icon">
-
                         {getWeatherIcon(
-                          weather.daily
-                            .weather_code[index]
+                          weather.daily.weather_code[index]
                         )}
-
                       </div>
 
                       <p className="forecast-condition">
-
                         {getWeatherDescription(
-                          weather.daily
-                            .weather_code[index]
+                          weather.daily.weather_code[index]
                         )}
-
                       </p>
 
                       <div className="forecast-temperature">
@@ -554,14 +619,8 @@ function App() {
                       </div>
 
                       <p className="rain-chance">
-
                         💧{' '}
-                        {
-                          weather.daily
-                            .precipitation_sum[index]
-                        }{' '}
-                        mm
-
+                        {weather.daily.precipitation_sum[index]} mm
                       </p>
 
                     </div>
@@ -591,8 +650,8 @@ function App() {
 
             <p>
               Enter a city name to see current
-              weather, weather details and a
-              7-day forecast.
+              weather, weather details, 24-hour
+              weather and a 7-day forecast.
             </p>
 
             <div className="features">
@@ -602,7 +661,8 @@ function App() {
               <span>💨 Wind</span>
               <span>🌧️ Rain</span>
               <span>🌅 Sunrise</span>
-              <span>📅 Forecast</span>
+              <span>🕐 24 Hours</span>
+              <span>📅 7 Days</span>
 
             </div>
 
@@ -612,11 +672,9 @@ function App() {
 
         {/* Footer */}
         <footer>
-
           <p>
             Weather data powered by Open-Meteo
           </p>
-
         </footer>
 
       </div>
